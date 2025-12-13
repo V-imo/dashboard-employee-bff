@@ -1,13 +1,6 @@
-import {
-  CognitoIdentityProviderClient,
-  AdminCreateUserCommand,
-} from "@aws-sdk/client-cognito-identity-provider";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
-
-const cognitoClient = new CognitoIdentityProviderClient({
-});
-
+import { createUser, getUsers } from "../../core/cognito";
 const RegisterUserSchema = z
   .object({
     email: z.email(),
@@ -29,86 +22,107 @@ const ErrorResponseSchema = z
   })
   .openapi("ErrorResponse");
 
-const getEnv = () => ({
-  userPoolId: process.env.USER_POOL_ID,
-});
+const UserSchema = z
+  .object({
+    username: z.string(),
+    email: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    currentAgency: z.string().optional(),
+  })
+  .openapi("User");
 
-export const route = new OpenAPIHono().openapi(
-  createRoute({
-    method: "post",
-    path: "/register",
-    request: {
-      body: {
-        content: {
-          "application/json": {
-            schema: RegisterUserSchema,
+export const route = new OpenAPIHono()
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/",
+      request: {
+        body: {
+          content: {
+            "application/json": {
+              schema: RegisterUserSchema,
+            },
           },
         },
       },
-    },
-    responses: {
-      201: {
-        content: {
-          "application/json": {
-            schema: RegisterUserResponseSchema,
+      responses: {
+        201: {
+          content: {
+            "application/json": {
+              schema: RegisterUserResponseSchema,
+            },
           },
+          description: "User registered successfully",
         },
-        description: "User registered successfully",
-      },
-      400: {
-        content: {
-          "application/json": {
-            schema: ErrorResponseSchema,
+        400: {
+          content: {
+            "application/json": {
+              schema: ErrorResponseSchema,
+            },
           },
+          description: "Registration failed",
         },
-        description: "Registration failed",
-      },
-      500: {
-        content: {
-          "application/json": {
-            schema: ErrorResponseSchema,
+        500: {
+          content: {
+            "application/json": {
+              schema: ErrorResponseSchema,
+            },
           },
+          description: "Server error",
         },
-        description: "Server error",
       },
-    },
-  description: "Register a new user",
-  }),
-  async (c) => {
-    const { email, firstName, lastName, currentAgency } = c.req.valid("json");
-    const { userPoolId } = getEnv();
-
-    try {
-      await cognitoClient.send(
-        new AdminCreateUserCommand({
-          UserPoolId: userPoolId,
-          Username: email,
-          UserAttributes: [
-            {
-              Name: "email",
-              Value: email,
-            },
-            {
-              Name: "given_name",
-              Value: firstName,
-            },
-            {
-              Name: "family_name",
-              Value: lastName,
-            },
-            {
-              Name: "custom:currentAgency",
-              Value: currentAgency,
-            },
-          ],
-          DesiredDeliveryMediums: ["EMAIL"],
-        })
-      );
-
-      return c.json({ message: "User registered successfully" }, 201);
-    } catch (error) {
-      console.error("Error registering user:", JSON.stringify(error));
-      return c.json({ error: "Registration failed" }, 400);
+      description: "Register a new user",
+    }),
+    async (c) => {
+      const { email, firstName, lastName, currentAgency } = c.req.valid("json");
+      try {
+        await createUser(email, firstName, lastName, currentAgency);
+        return c.json({ message: "User registered successfully" }, 201);
+      } catch (error) {
+        console.error("Error registering user:", JSON.stringify(error));
+        return c.json({ error: "Registration failed" }, 400);
+      }
     }
-  }
-);
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/{agencyId}",
+      request: {
+        params: z.object({
+          agencyId: z.string(),
+        }),
+      },
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              schema: z.array(UserSchema),
+            },
+          },
+          description: "Users retrieved successfully",
+        },
+        404: {
+          content: {
+            "application/json": {
+              schema: ErrorResponseSchema,
+            },
+          },
+          description: "Group not found",
+        },
+      },
+      description: "Get users from a group",
+    }),
+    async (c) => {
+      const { agencyId } = c.req.valid("param");
+      try {
+        const users = await getUsers(agencyId);
+        console.log("Retrieved users:", JSON.stringify(users));
+        return c.json(z.array(UserSchema).parse(users), 200);
+      } catch (error) {
+        console.error("Error retrieving users:", JSON.stringify(error));
+        return c.json({ error: "Group not found" }, 404);
+      }
+    }
+  );
