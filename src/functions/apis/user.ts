@@ -73,7 +73,7 @@ export const route = new OpenAPIHono().openapi(
         description: "Server error",
       },
     },
-    description: "Register a new user",
+  description: "Register a new user",
   }),
   async (c) => {
     const { email, firstName, lastName, currentAgency } = c.req.valid("json");
@@ -101,12 +101,8 @@ export const route = new OpenAPIHono().openapi(
               Value: lastName,
             },
             {
-              Name: "currentAgency",
+              Name: "custom:currentAgency",
               Value: Number(currentAgency).toString(),
-            },
-            {
-              Name: "custom:userPoolId",
-              Value: userPoolId,
             },
           ],
           DesiredDeliveryMediums: ["EMAIL"],
@@ -115,6 +111,7 @@ export const route = new OpenAPIHono().openapi(
 
       return c.json({ message: "User registered successfully" }, 201);
     } catch (error) {
+      console.error("Error registering user:", JSON.stringify(error));
       return c.json({ error: "Registration failed" }, 400);
     }
   }

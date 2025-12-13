@@ -17,7 +17,7 @@ export interface DashboardEmployeeBffProps extends cdk.StackProps {
 export class DashboardEmployeeBff extends cdk.Stack {
   constructor(scope: Construct, id: string, props: DashboardEmployeeBffProps) {
     super(scope, id, props);
-    const api = new apigw.HttpApi(this, "TransferApi", {
+    const api = new apigw.HttpApi(this, "EmployeeDashboardApi", {
       corsPreflight: {
         allowHeaders: [
           "Content-Type",
@@ -31,14 +31,10 @@ export class DashboardEmployeeBff extends cdk.Stack {
       },
     });
     const userPool = new cognito.UserPool(this, "UserPool", {
-      selfSignUpEnabled: true,
-      signInAliases: { username: true, email: true },
-      passwordPolicy: {
-        minLength: 12,
-        requireLowercase: true,
-        requireUppercase: true,
-        requireDigits: true,
-        requireSymbols: true,
+      selfSignUpEnabled: false,
+      signInAliases: { email: true },
+      customAttributes: {
+        currentAgency: new cognito.NumberAttribute(),
       },
     });
     const userPoolClient = userPool.addClient("UserPoolClient", {
@@ -48,7 +44,7 @@ export class DashboardEmployeeBff extends cdk.Stack {
     });
 
     new ssm.StringParameter(this, "UserPoolIdParameter", {
-      parameterName: `/${props.stage}/${props.serviceName}/userPoolId`,
+      parameterName: `/${props.stage}/${props.serviceName}/user-pool-id`,
       stringValue: userPool.userPoolId,
     });
     const apiFunction = new ln.NodejsFunction(this, "ApiFunction", {
