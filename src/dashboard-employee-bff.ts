@@ -34,8 +34,15 @@ export class DashboardEmployeeBff extends cdk.Stack {
       selfSignUpEnabled: false,
       signInAliases: { email: true },
       customAttributes: {
-        currentAgency: new cognito.NumberAttribute(),
+        currentAgency: new cognito.StringAttribute({ mutable: true }),
       },
+      userInvitation: {
+        emailSubject: "Welcome to Vimo!",
+        emailBody: "Hello {username}, your temporary password is {####}",
+      },
+      removalPolicy: props.stage.startsWith("test")
+        ? cdk.RemovalPolicy.DESTROY
+        : cdk.RemovalPolicy.RETAIN,
     });
     const userPoolClient = userPool.addClient("UserPoolClient", {
       authFlows: { userPassword: true },

@@ -6,7 +6,6 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
 
 const cognitoClient = new CognitoIdentityProviderClient({
-  region: process.env.AWS_REGION,
 });
 
 const RegisterUserSchema = z
@@ -14,7 +13,7 @@ const RegisterUserSchema = z
     email: z.email(),
     firstName: z.string(),
     lastName: z.string(),
-    currentAgency: z.number(),
+    currentAgency: z.string(),
   })
   .openapi("RegisterUser");
 
@@ -78,9 +77,6 @@ export const route = new OpenAPIHono().openapi(
   async (c) => {
     const { email, firstName, lastName, currentAgency } = c.req.valid("json");
     const { userPoolId } = getEnv();
-    if (!userPoolId) {
-      return c.json({ error: "Server misconfiguration" }, 500);
-    }
 
     try {
       await cognitoClient.send(
@@ -102,7 +98,7 @@ export const route = new OpenAPIHono().openapi(
             },
             {
               Name: "custom:currentAgency",
-              Value: Number(currentAgency).toString(),
+              Value: currentAgency,
             },
           ],
           DesiredDeliveryMediums: ["EMAIL"],

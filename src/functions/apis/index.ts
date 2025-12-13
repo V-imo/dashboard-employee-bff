@@ -6,12 +6,8 @@ import middy from "@middy/core";
 import { handle } from "hono/aws-lambda";
 import { HTTPException } from "hono/http-exception";
 import { logger as loggerMiddleware } from "hono/logger";
-import { Logger } from "@aws-lambda-powertools/logger";
-import { Tracer } from "@aws-lambda-powertools/tracer";
 import { route as UserRoute } from "./user";
-
-const logger = new Logger();
-const tracer = new Tracer();
+import { logger, tracer } from "../../core/utils";
 
 const app = new OpenAPIHono();
 
@@ -21,31 +17,29 @@ app.use(
   })
 );
 
-const routes = app
-  .route("/user", UserRoute)
-  .onError((error, c) => {
-    logger.error("Unhandled error", { error });
+const routes = app.route("/user", UserRoute).onError((error, c) => {
+  logger.error("Unhandled error", { error });
 
-    if (error instanceof HTTPException) {
-      return c.json(error.message, error.status);
-    }
+  if (error instanceof HTTPException) {
+    return c.json(error.message, error.status);
+  }
 
-    return c.json(
-      {
-        code: "internal",
-        message: "Internal server error",
-      },
-      500
-    );
-  });
+  return c.json(
+    {
+      code: "internal",
+      message: "Internal server error",
+    },
+    500
+  );
+});
 
 app
   .doc("/doc", {
     openapi: "3.0.0",
     info: {
       version: "1.0.0",
-      title: "DashboardEmployeeBff Api",
-      description: "The api used to manage the dashboard",
+      title: "DashboardEmployeeBffApi",
+      description: "API documentation for Handling Employee on the Dashboard",
     },
   })
   .get(
