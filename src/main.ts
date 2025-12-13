@@ -1,23 +1,23 @@
-import { App, Stack, StackProps } from "aws-cdk-lib"
-import { Construct } from "constructs"
+import * as cdk from "aws-cdk-lib"
+import { DashboardEmployeeBff } from "./dashboard-employee-bff"
 
-export class MyStack extends Stack {
-  constructor(scope: Construct, id: string, props: StackProps = {}) {
-    super(scope, id, props)
-
-    // define resources here...
-  }
+const env = {
+  account: process.env.CDK_DEPLOY_ACCOUNT ?? process.env.CDK_DEFAULT_ACCOUNT,
+  region: process.env.CDK_DEPLOY_REGION ?? process.env.CDK_DEFAULT_REGION,
 }
 
-// for development, use account/region from cdk cli
-const devEnv = {
-  account: process.env.CDK_DEFAULT_ACCOUNT,
-  region: process.env.CDK_DEFAULT_REGION,
+const app = new cdk.App()
+
+const serviceName = app.node.tryGetContext("serviceName") as string | undefined
+if (!serviceName) {
+  throw new Error("Missing context: serviceName")
 }
 
-const app = new App()
+const stage = app.node.tryGetContext("stage") as string | undefined
+if (!stage) {
+  throw new Error("Missing context: stage")
+}
 
-new MyStack(app, "dashboard-employee-bff-dev", { env: devEnv })
-// new MyStack(app, 'dashboard-employee-bff-prod', { env: prodEnv });
+new DashboardEmployeeBff(app, `${stage}-${serviceName}`, { env, stage, serviceName })
 
 app.synth()
