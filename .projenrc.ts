@@ -7,13 +7,15 @@ const project = new Projalf({
     "@aws-lambda-powertools/logger",
     "@aws-lambda-powertools/tracer",
 
+    "@aws-sdk/client-cognito-identity-provider",
+
     "zod",
 
     "hono",
     "@hono/zod-openapi",
     "@hono/swagger-ui",
 
-    "@aws-sdk/client-cognito-identity-provider",
+    "@middy/core",
   ],
   name: "dashboard-employee-bff",
   projenrcTs: true,
