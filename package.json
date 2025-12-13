@@ -43,8 +43,16 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.30.0",
+    "@aws-lambda-powertools/tracer": "^2.30.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.948.0",
+    "@hono/swagger-ui": "^0.5.2",
+    "@hono/zod-openapi": "^1.1.5",
+    "@middy/core": "^6.4.5",
     "aws-cdk-lib": "^2.1.0",
-    "constructs": "^10.0.5"
+    "constructs": "^10.0.5",
+    "hono": "^4.11.0",
+    "zod": "^4.1.13"
   },
   "license": "Apache-2.0",
   "publishConfig": {
