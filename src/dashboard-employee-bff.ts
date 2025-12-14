@@ -47,7 +47,7 @@ export class DashboardEmployeeBff extends cdk.Stack {
     const userPoolClient = userPool.addClient("UserPoolClient", {
       authFlows: { userPassword: true },
       preventUserExistenceErrors: true,
-      generateSecret: false,
+      generateSecret: true,
     });
 
     new ssm.StringParameter(this, "UserPoolIdParameter", {
