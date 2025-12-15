@@ -50,10 +50,15 @@ export class DashboardEmployeeBff extends cdk.Stack {
       generateSecret: true,
     });
 
-    new ssm.StringParameter(this, "UserPoolIdParameter", {
+    new ssm.StringParameter(this, "UserPoolArnParameter", {
       parameterName: `/${props.stage}/${props.serviceName}/user-pool-arn`,
       stringValue: userPool.userPoolArn,
     });
+    new ssm.StringParameter(this, "UserPoolClientIdParameter", {
+      parameterName: `/${props.stage}/${props.serviceName}/user-pool-client-id`,
+      stringValue: userPoolClient.userPoolClientId,
+    });
+
     const apiFunction = new ln.NodejsFunction(this, "ApiFunction", {
       entry: `${__dirname}/functions/apis/index.ts`,
       environment: {
