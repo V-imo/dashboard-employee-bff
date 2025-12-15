@@ -51,11 +51,11 @@ export class DashboardEmployeeBff extends cdk.Stack {
     });
 
     new ssm.StringParameter(this, "UserPoolArnParameter", {
-      parameterName: `vimo/${props.stage}/user-pool-arn`,
+      parameterName: `/vimo/${props.stage}/user-pool-arn`,
       stringValue: userPool.userPoolArn,
     });
     new ssm.StringParameter(this, "UserPoolClientIdParameter", {
-      parameterName: `vimo/${props.stage}/user-pool-client-id`,
+      parameterName: `/vimo/${props.stage}/user-pool-client-id`,
       stringValue: userPoolClient.userPoolClientId,
     });
 
