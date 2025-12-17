@@ -88,7 +88,7 @@ export class DashboardEmployeeBff extends cdk.Stack {
     );
     api.addRoutes({
       path: "/{proxy+}",
-      methods: [apigw.HttpMethod.GET, apigw.HttpMethod.POST],
+      methods: [apigw.HttpMethod.GET, apigw.HttpMethod.POST, apigw.HttpMethod.DELETE],
       integration: apiIntegration,
       // authorizer: undefined,
     });
