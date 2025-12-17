@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
-import { createUser, getUsers } from "../../core/cognito";
+import { createUser, deleteUser, getUsers } from "../../core/cognito";
 const RegisterUserSchema = z
   .object({
     email: z.email(),
@@ -123,6 +123,46 @@ export const route = new OpenAPIHono()
       } catch (error) {
         console.error("Error retrieving users:", JSON.stringify(error));
         return c.json({ error: "Group not found" }, 404);
+      }
+    }
+  )
+  .openapi(
+    createRoute({
+      method: "delete",
+      path: "/{username}",
+      request: {
+        params: z.object({
+          username: z.string(),
+        }),
+      },
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              schema: RegisterUserResponseSchema,
+            },
+          },
+          description: "User deleted successfully",
+        },
+        404: {
+          content: {
+            "application/json": {
+              schema: ErrorResponseSchema,
+            },
+          },
+          description: "User not found",
+        },
+      },
+      description: "Delete a user",
+    }),
+    async (c) => {
+      const { username } = c.req.valid("param");
+      try {
+        await deleteUser(username);
+        return c.json({ message: "User deleted successfully" }, 200);
+      } catch (error) {
+        console.error("Error deleting user:", JSON.stringify(error));
+        return c.json({ error: "User not found" }, 404);
       }
     }
   );

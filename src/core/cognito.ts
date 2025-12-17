@@ -1,6 +1,11 @@
 import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
+  AdminDeleteUserCommand,
+  AdminGetUserCommand,
+  AdminListGroupsForUserCommand,
+  AdminRemoveUserFromGroupCommand,
+  AdminUpdateUserAttributesCommand,
   CognitoIdentityProviderClient,
   CreateGroupCommand,
   ListUsersInGroupCommand,
@@ -79,4 +84,67 @@ export async function getUsers(groupName: string) {
       currentAgency: attrs["custom:currentAgency"],
     };
   });
+}
+
+export async function deleteUser(username: string) {
+  const [{ UserAttributes }, { Groups }] = await Promise.all([
+    cognitoClient.send(
+      new AdminGetUserCommand({
+        UserPoolId: env.USER_POOL_ID,
+        Username: username,
+      })
+    ),
+    cognitoClient.send(
+      new AdminListGroupsForUserCommand({
+        UserPoolId: env.USER_POOL_ID,
+        Username: username,
+      })
+    ),
+  ]);
+
+  const userGroups = Groups ?? [];
+  const currentAgency =
+    UserAttributes?.find((attr) => attr.Name === "custom:currentAgency")
+      ?.Value ?? userGroups[0]?.GroupName;
+
+  if (currentAgency) {
+    await cognitoClient.send(
+      new AdminRemoveUserFromGroupCommand({
+        GroupName: currentAgency,
+        UserPoolId: env.USER_POOL_ID,
+        Username: username,
+      })
+    );
+  }
+
+  const remainingGroups =
+    userGroups.filter((group) => group.GroupName !== currentAgency) ?? [];
+
+  if (remainingGroups.length === 0) {
+    return cognitoClient.send(
+      new AdminDeleteUserCommand({
+        UserPoolId: env.USER_POOL_ID,
+        Username: username,
+      })
+    );
+  }
+
+  const nextGroupName = remainingGroups[0]?.GroupName;
+
+  if (nextGroupName) {
+    await cognitoClient.send(
+      new AdminUpdateUserAttributesCommand({
+        UserPoolId: env.USER_POOL_ID,
+        Username: username,
+        UserAttributes: [
+          {
+            Name: "custom:currentAgency",
+            Value: nextGroupName,
+          },
+        ],
+      })
+    );
+  }
+
+  return "deletion done.";
 }
