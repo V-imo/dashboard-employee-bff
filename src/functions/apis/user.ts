@@ -1,6 +1,5 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
-import { createUser, deleteUser, getUsers } from "../../core/cognito";
 const RegisterUserSchema = z
   .object({
     email: z.email(),
