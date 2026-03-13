@@ -1,8 +1,10 @@
 import {
   DeleteItemCommand,
   GetItemCommand,
+  QueryCommand,
   UpdateAttributesCommand,
 } from "dynamodb-toolbox";
+import { CognitoEsgTable } from "../dynamodb";
 import { EmployeeEntity, EmployeeEntityType } from "./employee.entity";
 import { ignoreOplockError } from "../utils";
 
@@ -33,5 +35,17 @@ export namespace Employee {
     return EmployeeEntity.build(DeleteItemCommand)
       .key({ agencyId, email })
       .send();
+  }
+
+  export async function listByAgency(agencyId: string) {
+    const { Items = [] } = await CognitoEsgTable.build(QueryCommand)
+      .entities(EmployeeEntity)
+      .query({
+        partition: `AGENCY#${agencyId}`,
+        range: { beginsWith: "EMPLOYEE#" },
+      })
+      .send();
+
+    return Items;
   }
 }

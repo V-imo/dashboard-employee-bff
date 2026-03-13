@@ -6,25 +6,9 @@ import {
 import { Employee } from "../core/employee";
 import { logger } from "../core/utils";
 
-type EventEnvelope = {
-  type: string;
-  data: Record<string, any>;
-  timestamp: number;
-  source: string;
-  id: string;
-};
-
 export const handler = async (
-  event: EventBridgeEvent<string, EventEnvelope>,
+  event: EventBridgeEvent<string, unknown>,
 ) => {
-  if (event.detail.source !== process.env.SERVICE) {
-    logger.warn("Ignoring event from unauthorized source", {
-      detailType: event["detail-type"],
-      source: event.detail.source,
-    });
-    return { ok: true, ignored: true };
-  }
-
   switch (event["detail-type"]) {
     case EmployeeCreatedEvent.type: {
       const parsed = EmployeeCreatedEvent.parse(event.detail);
@@ -34,6 +18,7 @@ export const handler = async (
         firstname: parsed.data.given_name,
         lastname: parsed.data.family_name,
         oplock: parsed.timestamp,
+        latched: true,
       });
       break;
     }

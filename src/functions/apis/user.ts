@@ -1,11 +1,18 @@
+import { EventBridgeClient } from "@aws-sdk/client-eventbridge";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { EmployeeCreatedEvent, EmployeeDeletedEvent } from "vimo-events";
 import { z } from "zod";
+import { Employee } from "../../core/employee";
+import { logger, tracer } from "../../core/utils";
+
+const eventBridge = tracer.captureAWSv3Client(new EventBridgeClient());
+
 const RegisterUserSchema = z
   .object({
     email: z.email(),
     firstName: z.string(),
     lastName: z.string(),
-    currentAgency: z.string(),
+    agencyId: z.string(),
   })
   .openapi("RegisterUser");
 
@@ -24,14 +31,19 @@ const ErrorResponseSchema = z
 const UserSchema = z
   .object({
     username: z.string(),
-    email: z.string().optional(),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    currentAgency: z.string().optional(),
+    email: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
+    agencyId: z.string(),
   })
   .openapi("User");
 
-export const route = new OpenAPIHono()
+const DeleteUserParamsSchema = z.object({
+  agencyId: z.string(),
+  email: z.email(),
+});
+
+export const route = new OpenAPIHono<any>()
   .openapi(
     createRoute({
       method: "post",
@@ -46,13 +58,13 @@ export const route = new OpenAPIHono()
         },
       },
       responses: {
-        201: {
+        202: {
           content: {
             "application/json": {
               schema: RegisterUserResponseSchema,
             },
           },
-          description: "User registered successfully",
+          description: "User creation event published",
         },
         400: {
           content: {
@@ -60,29 +72,29 @@ export const route = new OpenAPIHono()
               schema: ErrorResponseSchema,
             },
           },
-          description: "Registration failed",
-        },
-        500: {
-          content: {
-            "application/json": {
-              schema: ErrorResponseSchema,
-            },
-          },
-          description: "Server error",
+          description: "Invalid request",
         },
       },
-      description: "Register a new user",
+      description: "Publish employee-created event",
     }),
-    async (c) => {
-      const { email, firstName, lastName, currentAgency } = c.req.valid("json");
+    (async (c: any) => {
+      const { email, firstName, lastName, agencyId } = c.req.valid("json");
       try {
-        await createUser(email, firstName, lastName, currentAgency);
-        return c.json({ message: "User registered successfully" }, 201);
+        await eventBridge.send(
+          EmployeeCreatedEvent.build({
+            email,
+            given_name: firstName,
+            family_name: lastName,
+            agencyId,
+          }),
+        );
+
+        return c.json({ message: "User creation event published" }, 202);
       } catch (error) {
-        console.error("Error registering user:", JSON.stringify(error));
-        return c.json({ error: "Registration failed" }, 400);
+        logger.error("Error publishing employee-created event", { error });
+        return c.json({ error: "Invalid request" }, 400);
       }
-    }
+    }) as any,
   )
   .openapi(
     createRoute({
@@ -111,57 +123,65 @@ export const route = new OpenAPIHono()
           description: "Group not found",
         },
       },
-      description: "Get users from a group",
+      description: "Get users by agency from projection table",
     }),
-    async (c) => {
+    (async (c: any) => {
       const { agencyId } = c.req.valid("param");
-      try {
-        const users = await getUsers(agencyId);
-        console.log("Retrieved users:", JSON.stringify(users));
-        return c.json(z.array(UserSchema).parse(users), 200);
-      } catch (error) {
-        console.error("Error retrieving users:", JSON.stringify(error));
-        return c.json({ error: "Group not found" }, 404);
-      }
-    }
+      const users = await Employee.listByAgency(agencyId);
+
+      const response = users.map((user) => ({
+        username: user.email,
+        email: user.email,
+        firstName: user.firstname,
+        lastName: user.lastname,
+        agencyId: user.agencyId,
+      }));
+
+      return c.json(z.array(UserSchema).parse(response), 200);
+    }) as any,
   )
   .openapi(
     createRoute({
       method: "delete",
-      path: "/{username}",
+      path: "/{agencyId}/{email}",
       request: {
-        params: z.object({
-          username: z.string(),
-        }),
+        params: DeleteUserParamsSchema,
       },
       responses: {
-        200: {
+        202: {
           content: {
             "application/json": {
               schema: RegisterUserResponseSchema,
             },
           },
-          description: "User deleted successfully",
+          description: "User deletion event published",
         },
-        404: {
+        400: {
           content: {
             "application/json": {
               schema: ErrorResponseSchema,
             },
           },
-          description: "User not found",
+          description: "Invalid request",
         },
       },
-      description: "Delete a user",
+      description: "Publish employee-deleted event",
     }),
-    async (c) => {
-      const { username } = c.req.valid("param");
+    (async (c: any) => {
+      const { agencyId, email } = c.req.valid("param");
+
       try {
-        await deleteUser(username);
-        return c.json({ message: "User deleted successfully" }, 200);
+        await eventBridge.send(
+          EmployeeDeletedEvent.build({
+            agencyId,
+            email,
+          }),
+        );
+
+        return c.json({ message: "User deletion event published" }, 202);
       } catch (error) {
-        console.error("Error deleting user:", JSON.stringify(error));
-        return c.json({ error: "User not found" }, 404);
+        logger.error("Error publishing employee-deleted event", { error });
+        return c.json({ error: "Invalid request" }, 400);
       }
-    }
+    }) as any,
   );

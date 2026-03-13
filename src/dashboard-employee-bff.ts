@@ -45,7 +45,6 @@ export class DashboardEmployeeBff extends cdk.Stack {
         STAGE: props.stage,
         SERVICE: props.serviceName,
         TABLE_NAME: table.tableName,
-        EVENT_BUS_NAME: eventBus.eventBusName,
       },
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
@@ -55,7 +54,30 @@ export class DashboardEmployeeBff extends cdk.Stack {
       memorySize: 256,
     });
     table.grantReadWriteData(listener);
-    eventBus.grantPutEventsTo(listener);
+
+    const trigger = new ln.NodejsFunction(this, "Trigger", {
+      entry: `${__dirname}/functions/trigger.ts`,
+      environment: {
+        STAGE: props.stage,
+        SERVICE: props.serviceName,
+        TABLE_NAME: table.tableName,
+        EVENT_BUS_NAME: eventBus.eventBusName,
+      },
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      logRetention: logs.RetentionDays.THREE_DAYS,
+      tracing: lambda.Tracing.ACTIVE,
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 128,
+    });
+    trigger.addEventSource(
+      new levs.DynamoEventSource(table, {
+        startingPosition: lambda.StartingPosition.TRIM_HORIZON,
+        retryAttempts: 3,
+      }),
+    );
+    table.grantReadWriteData(trigger);
+    eventBus.grantPutEventsTo(trigger);
 
     new events.Rule(this, "Rule", {
       eventBus,
@@ -95,6 +117,8 @@ export class DashboardEmployeeBff extends cdk.Stack {
       environment: {
         STAGE: props.stage,
         SERVICE: props.serviceName,
+        TABLE_NAME: table.tableName,
+        EVENT_BUS_NAME: eventBus.eventBusName,
         NODE_OPTIONS: "--enable-source-maps",
       },
       bundling: { minify: true, sourceMap: true },
@@ -104,6 +128,8 @@ export class DashboardEmployeeBff extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       memorySize: 512,
     });
+    table.grantReadData(apiFunction);
+    eventBus.grantPutEventsTo(apiFunction);
     const apiIntegration = new integrations.HttpLambdaIntegration(
       "ApiIntegration",
       apiFunction,
