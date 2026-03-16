@@ -1,1 +1,9 @@
-{}
+{
+  "test-dashboard-employee-bff": {
+    "EventBusName": "testdashboardemployeebffEventBus93018D99",
+    "UserPoolClientId": "3d7oj49hiikr6h6b9akber8j8c",
+    "UserPoolId": "eu-north-1_PChrOynqp",
+    "ApiUrl": "https://16k6hc5dr0.execute-api.eu-north-1.amazonaws.com/",
+    "ServerlessSpyWsUrl": "a3ksyngqjdf8yd-ats.iot.eu-north-1.amazonaws.com/TestDashboardEmployeeBff"
+  }
+}

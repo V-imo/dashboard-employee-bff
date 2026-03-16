@@ -145,6 +145,9 @@ export class DashboardEmployeeBff extends cdk.Stack {
       authorizer,
       // authorizer: undefined,
     });
+    new cdk.CfnOutput(this, "ApiUrl", {
+      value: api.url!,
+    });
     if (props.stage.startsWith("test")) {
       const serverlessSpy = new ServerlessSpy(this, "ServerlessSpy", {
         generateSpyEventsFileLocation: "test/spy.ts",

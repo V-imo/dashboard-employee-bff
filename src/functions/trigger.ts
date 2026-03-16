@@ -16,12 +16,11 @@ export const handler = async (event: DynamoDBStreamEvent) => {
         const { item } = EmployeeEntity.build(EntityParser).parse(
           unmarshall(object as Record<string, any>),
         );
-        const employee = item as Record<string, any>;
-        if (employee.latched) return;
+        if (item.latched) return;
         if (record.eventName === "INSERT") {
-          await eventBridge.send(EmployeeCreatedEvent.build(employee));
+          await eventBridge.send(EmployeeCreatedEvent.build(item));
         } else if (record.eventName === "REMOVE") {
-          await eventBridge.send(EmployeeDeletedEvent.build(employee));
+          await eventBridge.send(EmployeeDeletedEvent.build(item));
         }
       }
     }),
