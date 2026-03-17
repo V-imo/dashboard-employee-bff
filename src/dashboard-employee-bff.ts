@@ -118,7 +118,6 @@ export class DashboardEmployeeBff extends cdk.Stack {
         STAGE: props.stage,
         SERVICE: props.serviceName,
         TABLE_NAME: table.tableName,
-        EVENT_BUS_NAME: eventBus.eventBusName,
         NODE_OPTIONS: "--enable-source-maps",
       },
       bundling: { minify: true, sourceMap: true },
@@ -128,12 +127,16 @@ export class DashboardEmployeeBff extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       memorySize: 512,
     });
-    table.grantReadData(apiFunction);
-    eventBus.grantPutEventsTo(apiFunction);
+    table.grantReadWriteData(apiFunction);
     const apiIntegration = new integrations.HttpLambdaIntegration(
       "ApiIntegration",
       apiFunction,
     );
+    api.addRoutes({
+      path: "/doc",
+      methods: [apigw.HttpMethod.GET],
+      integration: apiIntegration,
+    });
     api.addRoutes({
       path: "/{proxy+}",
       methods: [
