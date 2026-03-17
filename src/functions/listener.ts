@@ -24,7 +24,11 @@ export const handler = async (
     }
     case EmployeeDeletedEvent.type: {
       const parsed = EmployeeDeletedEvent.parse(event.detail);
-      await Employee.del(parsed.data.agencyId, parsed.data.email);
+      await Employee.latchDelete(
+        parsed.data.agencyId,
+        parsed.data.email,
+        parsed.timestamp,
+      );
       break;
     }
     default:

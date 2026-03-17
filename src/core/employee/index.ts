@@ -1,5 +1,5 @@
 import {
-  DeleteItemCommand,
+  $remove,
   GetItemCommand,
   QueryCommand,
   UpdateAttributesCommand,
@@ -8,8 +8,12 @@ import { CognitoEsgTable } from "../dynamodb";
 import { EmployeeEntity, EmployeeEntityType } from "./employee.entity";
 import { ignoreOplockError } from "../utils";
 
+type UpdateEmployeeInput = Omit<EmployeeEntityType, "ttl"> & {
+  ttl?: number | ReturnType<typeof $remove>;
+};
+
 export namespace Employee {
-  export async function update(employee: EmployeeEntityType) {
+  export async function update(employee: UpdateEmployeeInput) {
     await EmployeeEntity.build(UpdateAttributesCommand)
       .item(employee)
       .options({
@@ -32,9 +36,37 @@ export namespace Employee {
   }
 
   export async function del(agencyId: string, email: string) {
-    return EmployeeEntity.build(DeleteItemCommand)
-      .key({ agencyId, email })
-      .send();
+    const employee = await get(agencyId, email);
+    if (!employee) {
+      return;
+    }
+
+    const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+
+    await update({
+      ...employee,
+      deleted: true,
+      latched: false,
+      ttl,
+      oplock: Date.now(),
+    });
+  }
+
+  export async function latchDelete(
+    agencyId: string,
+    email: string,
+    oplock: number,
+  ) {
+    const employee = await get(agencyId, email);
+    if (!employee) {
+      return;
+    }
+
+    await update({
+      ...employee,
+      latched: true,
+      oplock,
+    });
   }
 
   export async function listByAgency(agencyId: string) {
@@ -46,6 +78,6 @@ export namespace Employee {
       })
       .send();
 
-    return Items;
+    return Items.filter((item) => !item.deleted);
   }
 }

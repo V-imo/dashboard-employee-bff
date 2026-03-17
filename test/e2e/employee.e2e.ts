@@ -1,14 +1,12 @@
 import fs from "fs";
-import type { DynamoDBStreamEvent, EventBridgeEvent } from "aws-lambda";
+import type { DynamoDBStreamEvent } from "aws-lambda";
 import {
   ServerlessSpyListener,
   createServerlessSpyListener,
 } from "serverless-spy";
 import {
   EmployeeCreatedEvent,
-  EmployeeCreatedEventEnvelope,
   EmployeeDeletedEvent,
-  EmployeeDeletedEventEnvelope,
 } from "vimo-events";
 import { ServerlessSpyEvents } from "../spy";
 import { createEmployee } from "../utils/auth";
@@ -70,6 +68,17 @@ describeIfConfigured("employee e2e", () => {
   test("should get employees by agency after employee-created event", async () => {
     const employee = generateEmployee();
     const eventBridge = new EventBridge(EventBusName!);
+    const triggerEventPromise =
+      serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
+        {
+          condition: ({ request }) =>
+            request.Records.some(
+              (record) =>
+                record.eventName === "INSERT" &&
+                record.dynamodb?.NewImage?.email?.S === employee.email,
+            ),
+        },
+      );
 
     const [user] = await Promise.all([
       createEmployee({
@@ -89,30 +98,7 @@ describeIfConfigured("employee e2e", () => {
 
     const apiClient = new ApiClient(ApiUrl!, user.idToken);
 
-    const listenerEvent =
-      await serverlessSpyListener.waitForFunctionListenerRequest<
-        EventBridgeEvent<string, EmployeeCreatedEventEnvelope>
-      >({
-        condition: ({ request }) =>
-          request["detail-type"] === EmployeeCreatedEvent.type &&
-          request.detail.data.email === employee.email,
-      });
-
-    expect(listenerEvent.getData().request.detail.data.agencyId).toEqual(
-      employee.agencyId,
-    );
-
-    const triggerEvent =
-      await serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
-        {
-          condition: ({ request }) =>
-            request.Records.some(
-              (record) =>
-                record.eventName === "INSERT" &&
-                record.dynamodb?.NewImage?.email?.S === employee.email,
-            ),
-        },
-      );
+    const triggerEvent = await triggerEventPromise;
 
     expect(
       triggerEvent.getData().request.Records[0].dynamodb?.NewImage?.latched?.BOOL,
@@ -144,43 +130,40 @@ describeIfConfigured("employee e2e", () => {
 
     const apiClient = new ApiClient(ApiUrl!, user.idToken);
 
+    const employeeCreatedTriggerPromise =
+      serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
+        {
+          condition: ({ request }) =>
+            request.Records.some(
+              (record) =>
+                record.eventName === "INSERT" &&
+                record.dynamodb?.NewImage?.email?.S === employee.email,
+            ),
+        },
+      );
+
     await eventualAssertion(
       async () => await apiClient.createEmployee(employee),
       (res) => {
-        expect(res).toEqual({ message: "User creation event published" });
+        expect(res).toEqual({ message: "User stored successfully" });
       },
     );
 
-    const employeeCreated = (
-      await serverlessSpyListener.waitForEventBridgeEventBus<EmployeeCreatedEventEnvelope>(
+    await employeeCreatedTriggerPromise;
+
+    const deleteTriggerEventPromise =
+      serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
         {
-          condition: ({ detail }) =>
-            detail.type === EmployeeCreatedEvent.type &&
-            detail.data.email === employee.email,
+          condition: ({ request }) =>
+            request.Records.some(
+              (record) =>
+                record.eventName === "MODIFY" &&
+                record.dynamodb?.NewImage?.email?.S === employee.email &&
+                record.dynamodb?.NewImage?.deleted?.BOOL === true &&
+                record.dynamodb?.NewImage?.ttl?.N !== undefined,
+            ),
         },
-      )
-    ).getData();
-
-    expect(employeeCreated.detail.data.agencyId).toEqual(employee.agencyId);
-
-    await serverlessSpyListener.waitForFunctionListenerRequest<
-      EventBridgeEvent<string, EmployeeCreatedEventEnvelope>
-    >({
-      condition: ({ request }) =>
-        request["detail-type"] === EmployeeCreatedEvent.type &&
-        request.detail.data.email === employee.email,
-    });
-
-    await serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
-      {
-        condition: ({ request }) =>
-          request.Records.some(
-            (record) =>
-              record.eventName === "INSERT" &&
-              record.dynamodb?.NewImage?.email?.S === employee.email,
-          ),
-      },
-    );
+      );
 
     await eventualAssertion(
       async () => await apiClient.getEmployees(employee.agencyId),
@@ -199,46 +182,15 @@ describeIfConfigured("employee e2e", () => {
       async () =>
         await apiClient.deleteEmployee(employee.agencyId, employee.email),
       (res) => {
-        expect(res).toEqual({ message: "User deletion event published" });
+        expect(res).toEqual({ message: "User marked as deleted" });
       },
     );
 
-    const employeeDeleted = (
-      await serverlessSpyListener.waitForEventBridgeEventBus<EmployeeDeletedEventEnvelope>(
-        {
-          condition: ({ detail }) =>
-            detail.type === EmployeeDeletedEvent.type &&
-            detail.data.email === employee.email,
-        },
-      )
-    ).getData();
-
-    expect(employeeDeleted.detail.data.agencyId).toEqual(employee.agencyId);
-
-    await serverlessSpyListener.waitForFunctionListenerRequest<
-      EventBridgeEvent<string, EmployeeDeletedEventEnvelope>
-    >({
-      condition: ({ request }) =>
-        request["detail-type"] === EmployeeDeletedEvent.type &&
-        request.detail.data.email === employee.email,
-    });
-
-    const deleteTriggerEvent =
-      await serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
-        {
-          condition: ({ request }) =>
-            request.Records.some(
-              (record) =>
-                record.eventName === "REMOVE" &&
-                record.dynamodb?.OldImage?.email?.S === employee.email,
-            ),
-        },
-      );
+    const deleteTriggerEvent = await deleteTriggerEventPromise;
 
     expect(
-      deleteTriggerEvent.getData().request.Records[0].dynamodb?.OldImage?.latched
-        ?.BOOL,
-    ).toBe(true);
+      deleteTriggerEvent.getData().request.Records[0].dynamodb?.NewImage?.ttl?.N,
+    ).toBeDefined();
 
     await eventualAssertion(
       async () => await apiClient.getEmployees(employee.agencyId),

@@ -1,11 +1,8 @@
-import { EventBridgeClient } from "@aws-sdk/client-eventbridge";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { EmployeeCreatedEvent, EmployeeDeletedEvent } from "vimo-events";
+import { $remove } from "dynamodb-toolbox";
 import { z } from "zod";
 import { Employee } from "../../core/employee";
-import { logger, tracer } from "../../core/utils";
-
-const eventBridge = tracer.captureAWSv3Client(new EventBridgeClient());
+import { logger } from "../../core/utils";
 
 const RegisterUserSchema = z
   .object({
@@ -64,7 +61,7 @@ export const route = new OpenAPIHono<any>()
               schema: RegisterUserResponseSchema,
             },
           },
-          description: "User creation event published",
+          description: "User stored successfully",
         },
         400: {
           content: {
@@ -75,23 +72,25 @@ export const route = new OpenAPIHono<any>()
           description: "Invalid request",
         },
       },
-      description: "Publish employee-created event",
+      description: "Store employee in projection table",
     }),
     (async (c: any) => {
       const { email, firstName, lastName, agencyId } = c.req.valid("json");
       try {
-        await eventBridge.send(
-          EmployeeCreatedEvent.build({
-            email,
-            given_name: firstName,
-            family_name: lastName,
-            agencyId,
-          }),
-        );
+        await Employee.update({
+          agencyId,
+          email,
+          firstname: firstName,
+          lastname: lastName,
+          oplock: Date.now(),
+          latched: false,
+          deleted: false,
+          ttl: $remove(),
+        });
 
-        return c.json({ message: "User creation event published" }, 202);
+        return c.json({ message: "User stored successfully" }, 202);
       } catch (error) {
-        logger.error("Error publishing employee-created event", { error });
+        logger.error("Error storing employee", { error });
         return c.json({ error: "Invalid request" }, 400);
       }
     }) as any,
@@ -154,7 +153,7 @@ export const route = new OpenAPIHono<any>()
               schema: RegisterUserResponseSchema,
             },
           },
-          description: "User deletion event published",
+          description: "User marked as deleted",
         },
         400: {
           content: {
@@ -165,22 +164,17 @@ export const route = new OpenAPIHono<any>()
           description: "Invalid request",
         },
       },
-      description: "Publish employee-deleted event",
+      description: "Soft delete employee in projection table",
     }),
     (async (c: any) => {
       const { agencyId, email } = c.req.valid("param");
 
       try {
-        await eventBridge.send(
-          EmployeeDeletedEvent.build({
-            agencyId,
-            email,
-          }),
-        );
+        await Employee.del(agencyId, email);
 
-        return c.json({ message: "User deletion event published" }, 202);
+        return c.json({ message: "User marked as deleted" }, 202);
       } catch (error) {
-        logger.error("Error publishing employee-deleted event", { error });
+        logger.error("Error soft deleting employee", { error });
         return c.json({ error: "Invalid request" }, 400);
       }
     }) as any,

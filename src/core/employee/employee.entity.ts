@@ -17,6 +17,8 @@ export const EmployeeEntity = new Entity({
     email: string().key(),
     oplock: number(),
     latched: boolean().optional(),
+    deleted: boolean().optional(),
+    ttl: number().optional(),
   }),
   computeKey: ({ agencyId, email }: { agencyId: string; email: string }) => ({
     PK: `AGENCY#${agencyId}`,
