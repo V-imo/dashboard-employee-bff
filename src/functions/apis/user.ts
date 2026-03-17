@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, RouteHandler } from "@hono/zod-openapi";
 import { $remove } from "dynamodb-toolbox";
 import { z } from "zod";
 import { Employee } from "../../core/employee";
@@ -40,142 +40,148 @@ const DeleteUserParamsSchema = z.object({
   email: z.email(),
 });
 
-export const route = new OpenAPIHono<any>()
-  .openapi(
-    createRoute({
-      method: "post",
-      path: "/",
-      request: {
-        body: {
-          content: {
-            "application/json": {
-              schema: RegisterUserSchema,
-            },
-          },
+const registerUserRoute = createRoute({
+  method: "post",
+  path: "/",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: RegisterUserSchema,
         },
       },
-      responses: {
-        202: {
-          content: {
-            "application/json": {
-              schema: RegisterUserResponseSchema,
-            },
-          },
-          description: "User stored successfully",
-        },
-        400: {
-          content: {
-            "application/json": {
-              schema: ErrorResponseSchema,
-            },
-          },
-          description: "Invalid request",
+    },
+  },
+  responses: {
+    202: {
+      content: {
+        "application/json": {
+          schema: RegisterUserResponseSchema,
         },
       },
-      description: "Store employee in projection table",
+      description: "User stored successfully",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Invalid request",
+    },
+  },
+  description: "Store employee in projection table",
+});
+
+const registerUserHandler: RouteHandler<typeof registerUserRoute> = async (
+  c,
+) => {
+  const { email, firstName, lastName, agencyId } = c.req.valid("json");
+
+  try {
+    await Employee.update({
+      agencyId,
+      email,
+      firstname: firstName,
+      lastname: lastName,
+      oplock: Date.now(),
+      latched: false,
+      deleted: false,
+      ttl: $remove(),
+    });
+
+    return c.json({ message: "User stored successfully" }, 202);
+  } catch (error) {
+    logger.error("Error storing employee", { error });
+    return c.json({ error: "Invalid request" }, 400);
+  }
+};
+
+const getUsersRoute = createRoute({
+  method: "get",
+  path: "/{agencyId}",
+  request: {
+    params: z.object({
+      agencyId: z.string(),
     }),
-    (async (c: any) => {
-      const { email, firstName, lastName, agencyId } = c.req.valid("json");
-      try {
-        await Employee.update({
-          agencyId,
-          email,
-          firstname: firstName,
-          lastname: lastName,
-          oplock: Date.now(),
-          latched: false,
-          deleted: false,
-          ttl: $remove(),
-        });
-
-        return c.json({ message: "User stored successfully" }, 202);
-      } catch (error) {
-        logger.error("Error storing employee", { error });
-        return c.json({ error: "Invalid request" }, 400);
-      }
-    }) as any,
-  )
-  .openapi(
-    createRoute({
-      method: "get",
-      path: "/{agencyId}",
-      request: {
-        params: z.object({
-          agencyId: z.string(),
-        }),
-      },
-      responses: {
-        200: {
-          content: {
-            "application/json": {
-              schema: z.array(UserSchema),
-            },
-          },
-          description: "Users retrieved successfully",
-        },
-        404: {
-          content: {
-            "application/json": {
-              schema: ErrorResponseSchema,
-            },
-          },
-          description: "Group not found",
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.array(UserSchema),
         },
       },
-      description: "Get users by agency from projection table",
-    }),
-    (async (c: any) => {
-      const { agencyId } = c.req.valid("param");
-      const users = await Employee.listByAgency(agencyId);
-
-      const response = users.map((user) => ({
-        username: user.email,
-        email: user.email,
-        firstName: user.firstname,
-        lastName: user.lastname,
-        agencyId: user.agencyId,
-      }));
-
-      return c.json(z.array(UserSchema).parse(response), 200);
-    }) as any,
-  )
-  .openapi(
-    createRoute({
-      method: "delete",
-      path: "/{agencyId}/{email}",
-      request: {
-        params: DeleteUserParamsSchema,
-      },
-      responses: {
-        202: {
-          content: {
-            "application/json": {
-              schema: RegisterUserResponseSchema,
-            },
-          },
-          description: "User marked as deleted",
-        },
-        400: {
-          content: {
-            "application/json": {
-              schema: ErrorResponseSchema,
-            },
-          },
-          description: "Invalid request",
+      description: "Users retrieved successfully",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
         },
       },
-      description: "Soft delete employee in projection table",
-    }),
-    (async (c: any) => {
-      const { agencyId, email } = c.req.valid("param");
+      description: "Group not found",
+    },
+  },
+  description: "Get users by agency from projection table",
+});
 
-      try {
-        await Employee.del(agencyId, email);
+const getUsersHandler: RouteHandler<typeof getUsersRoute> = async (c) => {
+  const { agencyId } = c.req.valid("param");
+  const users = await Employee.listByAgency(agencyId);
 
-        return c.json({ message: "User marked as deleted" }, 202);
-      } catch (error) {
-        logger.error("Error soft deleting employee", { error });
-        return c.json({ error: "Invalid request" }, 400);
-      }
-    }) as any,
-  );
+  const response = users.map((user) => ({
+    username: user.email,
+    email: user.email,
+    firstName: user.firstname,
+    lastName: user.lastname,
+    agencyId: user.agencyId,
+  }));
+
+  return c.json(z.array(UserSchema).parse(response), 200);
+};
+
+const deleteUserRoute = createRoute({
+  method: "delete",
+  path: "/{agencyId}/{email}",
+  request: {
+    params: DeleteUserParamsSchema,
+  },
+  responses: {
+    202: {
+      content: {
+        "application/json": {
+          schema: RegisterUserResponseSchema,
+        },
+      },
+      description: "User marked as deleted",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Invalid request",
+    },
+  },
+  description: "Soft delete employee in projection table",
+});
+
+const deleteUserHandler: RouteHandler<typeof deleteUserRoute> = async (c) => {
+  const { agencyId, email } = c.req.valid("param");
+
+  try {
+    await Employee.del(agencyId, email);
+
+    return c.json({ message: "User marked as deleted" }, 202);
+  } catch (error) {
+    logger.error("Error soft deleting employee", { error });
+    return c.json({ error: "Invalid request" }, 400);
+  }
+};
+
+export const route = new OpenAPIHono()
+  .openapi(registerUserRoute, registerUserHandler)
+  .openapi(getUsersRoute, getUsersHandler)
+  .openapi(deleteUserRoute, deleteUserHandler);

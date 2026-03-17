@@ -1,4 +1,8 @@
-import type { DynamoDBStreamEvent } from "aws-lambda";
+import type {
+  AttributeValue,
+  DynamoDBRecord,
+  DynamoDBStreamEvent,
+} from "aws-lambda";
 import { EmployeeCreatedEvent, EmployeeDeletedEvent } from "vimo-events";
 
 process.env.EVENT_BUS_NAME = "test-bus";
@@ -25,6 +29,18 @@ jest.mock("../src/core/utils", () => ({
 
 const { handler } = require("../src/functions/trigger") as typeof import("../src/functions/trigger");
 
+const record = (
+  eventName: NonNullable<DynamoDBRecord["eventName"]>,
+  dynamodb: DynamoDBRecord["dynamodb"],
+): DynamoDBRecord => ({
+  eventName,
+  dynamodb,
+});
+
+const image = (
+  attributes: Record<string, AttributeValue>,
+): Record<string, AttributeValue> => attributes;
+
 describe("trigger", () => {
   beforeEach(() => {
     sendMock.mockReset();
@@ -33,22 +49,19 @@ describe("trigger", () => {
   it("publishes employee-created when a non-latched employee is inserted", async () => {
     const event: DynamoDBStreamEvent = {
       Records: [
-        {
-          eventName: "INSERT",
-          dynamodb: {
-            NewImage: {
-              PK: { S: "AGENCY#agency-1" },
-              SK: { S: "EMPLOYEE#john@example.com" },
-              _et: { S: "Employee" },
-              agencyId: { S: "agency-1" },
-              email: { S: "john@example.com" },
-              firstname: { S: "John" },
-              lastname: { S: "Doe" },
-              oplock: { N: "1" },
-              latched: { BOOL: false },
-            },
-          },
-        } as any,
+        record("INSERT", {
+          NewImage: image({
+            PK: { S: "AGENCY#agency-1" },
+            SK: { S: "EMPLOYEE#john@example.com" },
+            _et: { S: "Employee" },
+            agencyId: { S: "agency-1" },
+            email: { S: "john@example.com" },
+            firstname: { S: "John" },
+            lastname: { S: "Doe" },
+            oplock: { N: "1" },
+            latched: { BOOL: false },
+          }),
+        }),
       ],
     };
 
@@ -73,35 +86,32 @@ describe("trigger", () => {
   it("publishes employee-deleted when an employee is soft-deleted", async () => {
     const event: DynamoDBStreamEvent = {
       Records: [
-        {
-          eventName: "MODIFY",
-          dynamodb: {
-            OldImage: {
-              PK: { S: "AGENCY#agency-1" },
-              SK: { S: "EMPLOYEE#john@example.com" },
-              _et: { S: "Employee" },
-              agencyId: { S: "agency-1" },
-              email: { S: "john@example.com" },
-              firstname: { S: "John" },
-              lastname: { S: "Doe" },
-              oplock: { N: "1" },
-              latched: { BOOL: false },
-            },
-            NewImage: {
-              PK: { S: "AGENCY#agency-1" },
-              SK: { S: "EMPLOYEE#john@example.com" },
-              _et: { S: "Employee" },
-              agencyId: { S: "agency-1" },
-              email: { S: "john@example.com" },
-              firstname: { S: "John" },
-              lastname: { S: "Doe" },
-              oplock: { N: "2" },
-              latched: { BOOL: false },
-              deleted: { BOOL: true },
-              ttl: { N: "9999999999" },
-            },
-          },
-        } as any,
+        record("MODIFY", {
+          OldImage: image({
+            PK: { S: "AGENCY#agency-1" },
+            SK: { S: "EMPLOYEE#john@example.com" },
+            _et: { S: "Employee" },
+            agencyId: { S: "agency-1" },
+            email: { S: "john@example.com" },
+            firstname: { S: "John" },
+            lastname: { S: "Doe" },
+            oplock: { N: "1" },
+            latched: { BOOL: false },
+          }),
+          NewImage: image({
+            PK: { S: "AGENCY#agency-1" },
+            SK: { S: "EMPLOYEE#john@example.com" },
+            _et: { S: "Employee" },
+            agencyId: { S: "agency-1" },
+            email: { S: "john@example.com" },
+            firstname: { S: "John" },
+            lastname: { S: "Doe" },
+            oplock: { N: "2" },
+            latched: { BOOL: false },
+            deleted: { BOOL: true },
+            ttl: { N: "9999999999" },
+          }),
+        }),
       ],
     };
 
