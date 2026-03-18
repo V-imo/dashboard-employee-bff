@@ -5,24 +5,30 @@ import {
   InitiateAuthCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
-type CreateEmployeeParams = {
+export type UserRole = "employee" | "inspector";
+
+type CreateUsersParams = {
   userPoolId: string;
   clientId: string;
   agencyId: string;
   email?: string;
 };
 
-export const createEmployee = async ({
-  userPoolId,
-  clientId,
-  agencyId,
-  email,
-}: CreateEmployeeParams) => {
+const PASSWORD = "P@ssword123!";
+
+const createUser = async (
+  role: UserRole,
+  {
+    userPoolId,
+    clientId,
+    agencyId,
+    email,
+  }: CreateUsersParams,
+) => {
+  const username = email ?? `${role}.${Date.now()}@example.com`;
   const cognito = new CognitoIdentityProviderClient({
     region: userPoolId.split("_")[0],
   });
-  const username = email ?? `employee.${Date.now()}@example.com`;
-  const password = "P@ssword123!";
 
   await cognito.send(
     new AdminCreateUserCommand({
@@ -41,7 +47,7 @@ export const createEmployee = async ({
     new AdminSetUserPasswordCommand({
       UserPoolId: userPoolId,
       Username: username,
-      Password: password,
+      Password: PASSWORD,
       Permanent: true,
     }),
   );
@@ -52,18 +58,46 @@ export const createEmployee = async ({
       AuthFlow: "USER_PASSWORD_AUTH",
       AuthParameters: {
         USERNAME: username,
-        PASSWORD: password,
+        PASSWORD: PASSWORD,
       },
     }),
   );
 
   if (!auth.AuthenticationResult?.IdToken) {
-    throw new Error("Failed to authenticate test employee");
+    throw new Error(`Failed to authenticate test ${role}`);
   }
 
   return {
     username,
-    password,
+    password: PASSWORD,
     idToken: auth.AuthenticationResult.IdToken,
   };
+};
+
+export const createEmployee = async ({
+  userPoolId,
+  clientId,
+  agencyId,
+  email,
+}: CreateUsersParams) => {
+  return createUser("employee", {
+    userPoolId,
+    clientId,
+    agencyId,
+    email,
+  });
+};
+
+export const createInspector = async ({
+  userPoolId,
+  clientId,
+  agencyId,
+  email,
+}: CreateUsersParams) => {
+  return createUser("inspector", {
+    userPoolId,
+    clientId,
+    agencyId,
+    email,
+  });
 };

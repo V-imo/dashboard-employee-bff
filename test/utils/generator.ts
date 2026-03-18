@@ -1,13 +1,20 @@
 import { faker } from "@faker-js/faker";
 
-type EmployeeOverrides = Partial<{
+type UserOverrides = Partial<{
   agencyId: string;
   email: string;
   firstName: string;
   lastName: string;
 }>;
 
-export const generateEmployee = (overrides: EmployeeOverrides = {}) => {
+export type GeneratedUser = {
+  agencyId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+};
+
+const generateUser = (overrides: UserOverrides = {}): GeneratedUser => {
   const firstName = overrides.firstName ?? faker.person.firstName();
   const lastName = overrides.lastName ?? faker.person.lastName();
 
@@ -18,3 +25,9 @@ export const generateEmployee = (overrides: EmployeeOverrides = {}) => {
     lastName,
   };
 };
+
+export const generateEmployee = (overrides: UserOverrides = {}) =>
+  generateUser(overrides);
+
+export const generateInspector = (overrides: UserOverrides = {}) =>
+  generateUser(overrides);
