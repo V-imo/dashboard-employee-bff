@@ -13,7 +13,12 @@ import { Construct } from "constructs";
 import { ServerlessSpy } from "serverless-spy";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as apigw_authorizers from "aws-cdk-lib/aws-apigatewayv2-authorizers";
-import { EmployeeCreatedEvent, EmployeeDeletedEvent } from "vimo-events";
+import {
+  EmployeeCreatedEvent,
+  EmployeeDeletedEvent,
+  InspectorCreatedEvent,
+  InspectorDeletedEvent,
+} from "vimo-events";
 
 export interface DashboardEmployeeBffProps extends cdk.StackProps {
   serviceName: string;
@@ -83,7 +88,12 @@ export class DashboardEmployeeBff extends cdk.Stack {
       eventBus,
       eventPattern: {
         source: ["custom"],
-        detailType: [EmployeeCreatedEvent.type, EmployeeDeletedEvent.type],
+        detailType: [
+          EmployeeCreatedEvent.type,
+          EmployeeDeletedEvent.type,
+          InspectorCreatedEvent.type,
+          InspectorDeletedEvent.type,
+        ],
       },
       targets: [
         new events_targets.LambdaFunction(listener, {

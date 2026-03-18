@@ -1,9 +1,9 @@
 {
   "test-dashboard-employee-bff": {
     "EventBusName": "testdashboardemployeebffEventBus93018D99",
-    "UserPoolClientId": "5jactfq10eu3m3oa1ag13vv9lt",
-    "UserPoolId": "eu-north-1_G5pFDqaVk",
-    "ApiUrl": "https://2yvrnwgcud.execute-api.eu-north-1.amazonaws.com/",
+    "UserPoolClientId": "2vkdkv2cd15252eo9a66ljuq8k",
+    "UserPoolId": "eu-north-1_PAyUYq3E2",
+    "ApiUrl": "https://jftaxu4e32.execute-api.eu-north-1.amazonaws.com/",
     "ServerlessSpyWsUrl": "a3ksyngqjdf8yd-ats.iot.eu-north-1.amazonaws.com/TestDashboardEmployeeBff"
   }
 }
