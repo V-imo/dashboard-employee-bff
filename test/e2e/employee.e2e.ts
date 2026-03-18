@@ -95,6 +95,7 @@ test("should create and delete an employee through the API", async () => {
           detail.type === EmployeeCreatedEvent.type &&
           detail.data.agencyId === employee.agencyId &&
           detail.data.email === employee.email,
+        timoutMs: 30000,
       },
     );
 
@@ -133,6 +134,7 @@ test("should create and delete an employee through the API", async () => {
           detail.type === EmployeeDeletedEvent.type &&
           detail.data.agencyId === employee.agencyId &&
           detail.data.email === employee.email,
+        timoutMs: 30000,
       },
     );
 

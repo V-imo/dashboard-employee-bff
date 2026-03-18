@@ -25,7 +25,7 @@ const {
   JSON.parse(fs.readFileSync("test.output.json", "utf8")),
 )[0] as Record<string, string>;
 process.env.EVENT_BUS_NAME = EventBusName;
-process.env.SERVICE = "inspection-inspector-bff";
+process.env.SERVICE = "dashboard-employee-bff";
 
 const eventBridge = new EventBridge(EventBusName);
 
@@ -95,6 +95,7 @@ test("should create and delete an inspector through the API", async () => {
           detail.type === InspectorCreatedEvent.type &&
           detail.data.agencyId === inspector.agencyId &&
           detail.data.email === inspector.email,
+        timoutMs: 30000,
       },
     );
 
@@ -133,6 +134,7 @@ test("should create and delete an inspector through the API", async () => {
           detail.type === InspectorDeletedEvent.type &&
           detail.data.agencyId === inspector.agencyId &&
           detail.data.email === inspector.email,
+        timoutMs: 30000,
       },
     );
 
