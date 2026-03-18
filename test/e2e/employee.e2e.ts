@@ -1,202 +1,157 @@
 import fs from "fs";
-import type { DynamoDBStreamEvent } from "aws-lambda";
 import {
   ServerlessSpyListener,
   createServerlessSpyListener,
 } from "serverless-spy";
 import {
   EmployeeCreatedEvent,
+  EmployeeCreatedEventEnvelope,
   EmployeeDeletedEvent,
+  EmployeeDeletedEventEnvelope,
 } from "vimo-events";
 import { ServerlessSpyEvents } from "../spy";
 import { createEmployee } from "../utils/auth";
 import { ApiClient } from "../utils/api";
-import { primeAwsEnvironment } from "../utils/aws";
 import { generateEmployee } from "../utils/generator";
 import { EventBridge, eventualAssertion } from "../utils";
 
-const outputs = Object.values(
+const {
+  ApiUrl,
+  EventBusName,
+  ServerlessSpyWsUrl,
+  UserPoolClientId,
+  UserPoolId,
+} = Object.values(
   JSON.parse(fs.readFileSync("test.output.json", "utf8")),
-)[0] as Record<string, string> | undefined;
+)[0] as Record<string, string>;
+process.env.EVENT_BUS_NAME = EventBusName;
+process.env.SERVICE = "dashboard-employee-bff";
 
-const ApiUrl = outputs?.ApiUrl;
-const ServerlessSpyWsUrl = outputs?.ServerlessSpyWsUrl;
-const UserPoolId = outputs?.UserPoolId;
-const UserPoolClientId = outputs?.UserPoolClientId;
-const EventBusName = outputs?.EventBusName;
-
-const hasRequiredOutputs = Boolean(
-  ApiUrl &&
-    ServerlessSpyWsUrl &&
-    UserPoolId &&
-    UserPoolClientId &&
-    EventBusName,
-);
-
-const describeIfConfigured = hasRequiredOutputs ? describe : describe.skip;
+const eventBridge = new EventBridge(EventBusName);
 
 let serverlessSpyListener: ServerlessSpyListener<ServerlessSpyEvents>;
+beforeEach(async () => {
+  serverlessSpyListener =
+    await createServerlessSpyListener<ServerlessSpyEvents>({
+      serverlessSpyWsUrl: ServerlessSpyWsUrl,
+    });
+}, 10000);
 
-if (EventBusName) {
-  process.env.EVENT_BUS_NAME = EventBusName;
-}
+afterEach(async () => {
+  serverlessSpyListener?.stop();
+});
 
-if (UserPoolId) {
-  process.env.AWS_REGION ??= UserPoolId.split("_")[0];
-}
+jest.setTimeout(60000);
 
-process.env.SERVICE ??= "dashboard-employee-bff";
+test("should get employees by agency after employee-created event", async () => {
+  const employee = generateEmployee();
 
-describeIfConfigured("employee e2e", () => {
-  beforeAll(async () => {
-    await primeAwsEnvironment(process.env.AWS_REGION);
-  });
+  const [user] = await Promise.all([
+    createEmployee({
+      userPoolId: UserPoolId,
+      clientId: UserPoolClientId,
+      agencyId: employee.agencyId,
+    }),
+    eventBridge.send(
+      EmployeeCreatedEvent.build({
+        agencyId: employee.agencyId,
+        email: employee.email,
+        given_name: employee.firstName,
+        family_name: employee.lastName,
+      }),
+    ),
+  ]);
+  const apiClient = new ApiClient(ApiUrl, user.idToken);
 
-  beforeEach(async () => {
-    serverlessSpyListener =
-      await createServerlessSpyListener<ServerlessSpyEvents>({
-        serverlessSpyWsUrl: ServerlessSpyWsUrl!,
+  await eventualAssertion(
+    async () => await apiClient.getEmployees(employee.agencyId),
+    (res) => {
+      expect(res).toContainEqual({
+        username: employee.email,
+        email: employee.email,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        agencyId: employee.agencyId,
       });
-  }, 10000);
+    },
+  );
+});
 
-  afterEach(async () => {
-    serverlessSpyListener?.stop();
-  });
+test("should create and delete an employee through the API", async () => {
+  const employee = generateEmployee();
 
-  jest.setTimeout(30000);
+  const [user] = await Promise.all([
+    createEmployee({
+      userPoolId: UserPoolId,
+      clientId: UserPoolClientId,
+      agencyId: employee.agencyId,
+    }),
+  ]);
+  const apiClient = new ApiClient(ApiUrl, user.idToken);
+  const employeeCreatedEventPromise =
+    serverlessSpyListener.waitForEventBridgeEventBus<EmployeeCreatedEventEnvelope>(
+      {
+        condition: ({ detail }) =>
+          detail.type === EmployeeCreatedEvent.type &&
+          detail.data.agencyId === employee.agencyId &&
+          detail.data.email === employee.email,
+      },
+    );
 
-  test("should get employees by agency after employee-created event", async () => {
-    const employee = generateEmployee();
-    const eventBridge = new EventBridge(EventBusName!);
-    const triggerEventPromise =
-      serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
-        {
-          condition: ({ request }) =>
-            request.Records.some(
-              (record) =>
-                record.eventName === "INSERT" &&
-                record.dynamodb?.NewImage?.email?.S === employee.email,
-            ),
-        },
-      );
+  await eventualAssertion(
+    async () => await apiClient.createEmployee(employee),
+    (res) => {
+      expect(res).toEqual({ message: "User stored successfully" });
+    },
+  );
 
-    const [user] = await Promise.all([
-      createEmployee({
-        userPoolId: UserPoolId!,
-        clientId: UserPoolClientId!,
+  const employeeCreatedEvent = (await employeeCreatedEventPromise).getData();
+  expect(employeeCreatedEvent.detail.data.given_name).toEqual(
+    employee.firstName,
+  );
+  expect(employeeCreatedEvent.detail.data.family_name).toEqual(
+    employee.lastName,
+  );
+
+  await eventualAssertion(
+    async () => await apiClient.getEmployees(employee.agencyId),
+    (res) => {
+      expect(res).toContainEqual({
+        username: employee.email,
+        email: employee.email,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
         agencyId: employee.agencyId,
-      }),
-      eventBridge.send(
-        EmployeeCreatedEvent.build({
-          agencyId: employee.agencyId,
-          email: employee.email,
-          given_name: employee.firstName,
-          family_name: employee.lastName,
-        }),
-      ),
-    ]);
+      });
+    },
+  );
 
-    const apiClient = new ApiClient(ApiUrl!, user.idToken);
-
-    const triggerEvent = await triggerEventPromise;
-
-    expect(
-      triggerEvent.getData().request.Records[0].dynamodb?.NewImage?.latched?.BOOL,
-    ).toBe(true);
-
-    await eventualAssertion(
-      async () => await apiClient.getEmployees(employee.agencyId),
-      (res) => {
-        expect(res).toContainEqual({
-          username: employee.email,
-          email: employee.email,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          agencyId: employee.agencyId,
-        });
-      },
-    );
-  });
-
-  test("should create and delete an employee through the API", async () => {
-    const employee = generateEmployee();
-    const [user] = await Promise.all([
-      createEmployee({
-        userPoolId: UserPoolId!,
-        clientId: UserPoolClientId!,
-        agencyId: employee.agencyId,
-      }),
-    ]);
-
-    const apiClient = new ApiClient(ApiUrl!, user.idToken);
-
-    const employeeCreatedTriggerPromise =
-      serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
-        {
-          condition: ({ request }) =>
-            request.Records.some(
-              (record) =>
-                record.eventName === "INSERT" &&
-                record.dynamodb?.NewImage?.email?.S === employee.email,
-            ),
-        },
-      );
-
-    await eventualAssertion(
-      async () => await apiClient.createEmployee(employee),
-      (res) => {
-        expect(res).toEqual({ message: "User stored successfully" });
+  const employeeDeletedEventPromise =
+    serverlessSpyListener.waitForEventBridgeEventBus<EmployeeDeletedEventEnvelope>(
+      {
+        condition: ({ detail }) =>
+          detail.type === EmployeeDeletedEvent.type &&
+          detail.data.agencyId === employee.agencyId &&
+          detail.data.email === employee.email,
       },
     );
 
-    await employeeCreatedTriggerPromise;
+  await eventualAssertion(
+    async () =>
+      await apiClient.deleteEmployee(employee.agencyId, employee.email),
+    (res) => {
+      expect(res).toEqual({ message: "User marked as deleted" });
+    },
+  );
 
-    const deleteTriggerEventPromise =
-      serverlessSpyListener.waitForFunctionTriggerRequest<DynamoDBStreamEvent>(
-        {
-          condition: ({ request }) =>
-            request.Records.some(
-              (record) =>
-                record.eventName === "MODIFY" &&
-                record.dynamodb?.NewImage?.email?.S === employee.email &&
-                record.dynamodb?.NewImage?.deleted?.BOOL === true &&
-                record.dynamodb?.NewImage?.ttl?.N !== undefined,
-            ),
-        },
-      );
+  const employeeDeletedEvent = (await employeeDeletedEventPromise).getData();
+  expect(employeeDeletedEvent.detail.data.agencyId).toEqual(employee.agencyId);
+  expect(employeeDeletedEvent.detail.data.email).toEqual(employee.email);
 
-    await eventualAssertion(
-      async () => await apiClient.getEmployees(employee.agencyId),
-      (res) => {
-        expect(res).toContainEqual({
-          username: employee.email,
-          email: employee.email,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          agencyId: employee.agencyId,
-        });
-      },
-    );
-
-    await eventualAssertion(
-      async () =>
-        await apiClient.deleteEmployee(employee.agencyId, employee.email),
-      (res) => {
-        expect(res).toEqual({ message: "User marked as deleted" });
-      },
-    );
-
-    const deleteTriggerEvent = await deleteTriggerEventPromise;
-
-    expect(
-      deleteTriggerEvent.getData().request.Records[0].dynamodb?.NewImage?.ttl?.N,
-    ).toBeDefined();
-
-    await eventualAssertion(
-      async () => await apiClient.getEmployees(employee.agencyId),
-      (res) => {
-        expect(res).toEqual([]);
-      },
-    );
-  });
+  await eventualAssertion(
+    async () => await apiClient.getEmployees(employee.agencyId),
+    (res) => {
+      expect(res).toEqual([]);
+    },
+  );
 });

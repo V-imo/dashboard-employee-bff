@@ -215,7 +215,7 @@
       "name": "test:e2e",
       "steps": [
         {
-          "exec": "jest --config jest.e2e.config.json --runInBand --passWithNoTests"
+          "exec": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.e2e.config.json --runInBand --passWithNoTests"
         }
       ]
     },

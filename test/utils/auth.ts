@@ -4,7 +4,6 @@ import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
-import { getAwsClientConfig } from "./aws";
 
 type CreateEmployeeParams = {
   userPoolId: string;
@@ -19,9 +18,9 @@ export const createEmployee = async ({
   agencyId,
   email,
 }: CreateEmployeeParams) => {
-  const cognito = new CognitoIdentityProviderClient(
-    getAwsClientConfig(userPoolId.split("_")[0]),
-  );
+  const cognito = new CognitoIdentityProviderClient({
+    region: userPoolId.split("_")[0],
+  });
   const username = email ?? `employee.${Date.now()}@example.com`;
   const password = "P@ssword123!";
 

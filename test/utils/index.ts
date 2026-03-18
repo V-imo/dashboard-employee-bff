@@ -4,7 +4,6 @@ import {
 } from "@aws-sdk/client-eventbridge";
 import { backOff } from "exponential-backoff";
 import { EventBridgeEvent } from "aws-lambda";
-import { getAwsClientConfig } from "./aws";
 
 export const eventualAssertion = async <T>(
   fn: () => Promise<T>,
@@ -26,7 +25,7 @@ export class EventBridge {
   private eventBridgeClient: EventBridgeClient;
 
   constructor(private eventBusName: string) {
-    this.eventBridgeClient = new EventBridgeClient(getAwsClientConfig());
+    this.eventBridgeClient = new EventBridgeClient();
     this.eventBusName = eventBusName;
   }
 

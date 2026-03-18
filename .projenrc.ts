@@ -40,4 +40,11 @@ const project = new Projalf({
   // description: undefined,  /* The description is just a string that helps people understand the purpose of the package. */
   // packageName: undefined,  /* The "name" in package.json. */
 });
+
+project.tasks
+  .tryFind("test:e2e")
+  ?.reset(
+    "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.e2e.config.json --runInBand --passWithNoTests",
+  );
+
 project.synth();

@@ -5,9 +5,9 @@ import { z } from "zod";
 export const env = z
   .object({
     SERVICE: z.string(),
-    TABLE_NAME: z.string().default(""),
-    EVENT_BUS_NAME: z.string().default(""),
-    STAGE: z.string().default(""),
+    TABLE_NAME: z.string(),
+    EVENT_BUS_NAME: z.string().optional(),
+    STAGE: z.string(),
   })
   .parse(process.env);
 
