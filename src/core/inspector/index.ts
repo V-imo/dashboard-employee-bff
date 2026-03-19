@@ -35,9 +35,20 @@ export namespace Inspector {
     return Item;
   }
 
-  export async function del(agencyId: string, email: string) {
+  export async function del(
+    agencyId: string,
+    email: string,
+    latched = false,
+    oplock = Date.now(),
+  ) {
     const inspector = await get(agencyId, email);
-    if (!inspector) {
+
+    if (latched) {
+      await update({
+        ...inspector,
+        latched: true,
+        oplock,
+      });
       return;
     }
 
@@ -48,26 +59,9 @@ export namespace Inspector {
       deleted: true,
       latched: false,
       ttl,
-      oplock: Date.now(),
-    });
-  }
-  export async function latchDelete(
-    agencyId: string,
-    email: string,
-    oplock: number,
-  ) {
-    const inspector = await get(agencyId, email);
-    if (!inspector) {
-      return;
-    }
-
-    await update({
-      ...inspector,
-      latched: true,
       oplock,
     });
   }
-
   export async function listByAgency(agencyId: string) {
     const { Items = [] } = await CognitoEsgTable.build(QueryCommand)
       .entities(InspectorEntity)
@@ -75,8 +69,18 @@ export namespace Inspector {
         partition: `AGENCY#${agencyId}`,
         range: { beginsWith: "INSPECTOR#" },
       })
+      .options({
+        filters: {
+          Inspector: {
+            or: [
+              { attr: "deleted", exists: false },
+              { attr: "deleted", eq: false },
+            ],
+          },
+        },
+      })
       .send();
 
-    return Items.filter((item) => !item.deleted);
+    return Items;
   }
 }

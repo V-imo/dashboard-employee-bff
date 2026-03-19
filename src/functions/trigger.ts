@@ -48,8 +48,6 @@ export const handler = async (event: DynamoDBStreamEvent) => {
           if (newItem.deleted && !oldItem.deleted) {
             await eventBridge.send(EmployeeDeletedEvent.build(newItem));
           }
-        } else if (record.eventName === "REMOVE") {
-          await eventBridge.send(EmployeeDeletedEvent.build(item));
         }
       }
 
@@ -80,8 +78,6 @@ export const handler = async (event: DynamoDBStreamEvent) => {
           if (newItem.deleted && !oldItem.deleted) {
             await eventBridge.send(InspectorDeletedEvent.build(newItem));
           }
-        } else if (record.eventName === "REMOVE") {
-          await eventBridge.send(InspectorDeletedEvent.build(item));
         }
       }
     }),

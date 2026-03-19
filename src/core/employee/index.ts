@@ -35,9 +35,20 @@ export namespace Employee {
     return Item;
   }
 
-  export async function del(agencyId: string, email: string) {
+  export async function del(
+    agencyId: string,
+    email: string,
+    latched = false,
+    oplock = Date.now(),
+  ) {
     const employee = await get(agencyId, email);
-    if (!employee) {
+
+    if (latched) {
+      await update({
+        ...employee,
+        latched: true,
+        oplock,
+      });
       return;
     }
 
@@ -48,27 +59,9 @@ export namespace Employee {
       deleted: true,
       latched: false,
       ttl,
-      oplock: Date.now(),
-    });
-  }
-
-  export async function latchDelete(
-    agencyId: string,
-    email: string,
-    oplock: number,
-  ) {
-    const employee = await get(agencyId, email);
-    if (!employee) {
-      return;
-    }
-
-    await update({
-      ...employee,
-      latched: true,
       oplock,
     });
   }
-
   export async function listByAgency(agencyId: string) {
     const { Items = [] } = await CognitoEsgTable.build(QueryCommand)
       .entities(EmployeeEntity)

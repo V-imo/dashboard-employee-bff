@@ -25,9 +25,10 @@ export const handler = async (event: EventBridgeEvent<string, unknown>) => {
     }
     case EmployeeDeletedEvent.type: {
       const parsed = EmployeeDeletedEvent.parse(event.detail);
-      await Employee.latchDelete(
+      await Employee.del(
         parsed.data.agencyId,
         parsed.data.email,
+        true,
         parsed.timestamp,
       );
       break;
@@ -46,9 +47,10 @@ export const handler = async (event: EventBridgeEvent<string, unknown>) => {
     }
     case InspectorDeletedEvent.type: {
       const parsed = InspectorDeletedEvent.parse(event.detail);
-      await Inspector.latchDelete(
+      await Inspector.del(
         parsed.data.agencyId,
         parsed.data.email,
+        true,
         parsed.timestamp,
       );
       break;
