@@ -214,19 +214,19 @@ export class DashboardEmployeeBff extends cdk.Stack {
 
       return { userPool, userPoolClient };
     }
-    const userPoolArn = ssm.StringParameter.valueForStringParameter(
+    const userPoolId = ssm.StringParameter.valueForStringParameter(
       this,
-      `/vimo/${stage}/user-pool-arn`,
+      `/vimo/${stage}/user-pool-id`,
     );
     const userPoolClientId = ssm.StringParameter.valueForStringParameter(
       this,
       `/vimo/${stage}/user-pool-client-id`,
     );
 
-    const userPool = cognito.UserPool.fromUserPoolArn(
+    const userPool = cognito.UserPool.fromUserPoolId(
       this,
       "UserPool",
-      userPoolArn,
+      userPoolId,
     );
 
     const userPoolClient = cognito.UserPoolClient.fromUserPoolClientId(
