@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono, RouteHandler } from "@hono/zod-openapi";
 import { $remove } from "dynamodb-toolbox";
 import { z } from "zod";
-import { Employee } from "../../core/employee";
+import { Inspector } from "../../core/inspector";
 import { logger } from "../../core/utils";
 
 const RegisterUserSchema = z
@@ -70,7 +70,7 @@ const registerUserRoute = createRoute({
       description: "Invalid request",
     },
   },
-  description: "Store employee in projection table",
+  description: "Store inspector in projection table",
 });
 
 const registerUserHandler: RouteHandler<typeof registerUserRoute> = async (
@@ -79,7 +79,7 @@ const registerUserHandler: RouteHandler<typeof registerUserRoute> = async (
   const { email, firstName, lastName, agencyId } = c.req.valid("json");
 
   try {
-    await Employee.update({
+    await Inspector.update({
       agencyId,
       email,
       firstname: firstName,
@@ -92,7 +92,7 @@ const registerUserHandler: RouteHandler<typeof registerUserRoute> = async (
 
     return c.json({ message: "User stored successfully" }, 202);
   } catch (error) {
-    logger.error("Error storing employee", { error });
+    logger.error("Error storing Inspector", { error });
     return c.json({ error: "Invalid request" }, 400);
   }
 };
@@ -123,12 +123,12 @@ const getUsersRoute = createRoute({
       description: "Group not found",
     },
   },
-  description: "Get users by agency from projection table",
+  description: "Get inspectors by agency from projection table",
 });
 
 const getUsersHandler: RouteHandler<typeof getUsersRoute> = async (c) => {
   const { agencyId } = c.req.valid("param");
-  const users = await Employee.listByAgency(agencyId);
+  const users = await Inspector.listByAgency(agencyId);
 
   const response = users.map((user) => ({
     username: user.email,
@@ -154,7 +154,7 @@ const deleteUserRoute = createRoute({
           schema: RegisterUserResponseSchema,
         },
       },
-      description: "User marked as deleted",
+      description: "Inspector marked as deleted",
     },
     400: {
       content: {
@@ -165,18 +165,18 @@ const deleteUserRoute = createRoute({
       description: "Invalid request",
     },
   },
-  description: "Soft delete employee in projection table",
+  description: "Soft delete inspector in projection table",
 });
 
 const deleteUserHandler: RouteHandler<typeof deleteUserRoute> = async (c) => {
   const { agencyId, email } = c.req.valid("param");
 
   try {
-    await Employee.del(agencyId, email);
+    await Inspector.del(agencyId, email);
 
-    return c.json({ message: "User marked as deleted" }, 202);
+    return c.json({ message: "Inspector marked as deleted" }, 202);
   } catch (error) {
-    logger.error("Error soft deleting employee", { error });
+    logger.error("Error soft deleting inspector", { error });
     return c.json({ error: "Invalid request" }, 400);
   }
 };

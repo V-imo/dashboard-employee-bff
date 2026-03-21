@@ -6,6 +6,7 @@ import middy from "@middy/core";
 import { handle } from "hono/aws-lambda";
 import { HTTPException } from "hono/http-exception";
 import { logger as loggerMiddleware } from "hono/logger";
+import { route as InspectorRoute } from "./inspector";
 import { route as UserRoute } from "./user";
 import { logger, tracer } from "../../core/utils";
 
@@ -17,21 +18,24 @@ app.use(
   })
 );
 
-const routes = app.route("/user", UserRoute).onError((error, c) => {
-  logger.error("Unhandled error", { error });
+const routes = app
+  .route("/user", UserRoute)
+  .route("/inspector", InspectorRoute)
+  .onError((error, c) => {
+    logger.error("Unhandled error", { error });
 
-  if (error instanceof HTTPException) {
-    return c.json(error.message, error.status);
-  }
+    if (error instanceof HTTPException) {
+      return c.json(error.message, error.status);
+    }
 
-  return c.json(
-    {
-      code: "internal",
-      message: "Internal server error",
-    },
-    500
-  );
-});
+    return c.json(
+      {
+        code: "internal",
+        message: "Internal server error",
+      },
+      500
+    );
+  });
 
 app
   .doc("/doc", {
